@@ -1,6 +1,6 @@
 from rest_framework import generics, permissions, response, status
 from django.contrib.auth import authenticate
-from .models import UserProfile
+
 from .serializers import UserSerializer
 
 

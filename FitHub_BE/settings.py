@@ -25,21 +25,23 @@ SECRET_KEY = 'django-insecure-3w&189t-p%*%!g373)34r9#pvdz#s%#7532_qs66e-*%(6*@-x
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['25.30.88.200']
 
 
 # Application definition
 
 INSTALLED_APPS = [
-    'authorisation',
+    'rest_framework_simplejwt',
     'rest_framework',
-    'corsheaders',
+    'authorisation',
+    'drf_yasg',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django_extensions',
 ]
 
 MIDDLEWARE = [
@@ -111,7 +113,11 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    )
+}
 # Internationalization
 # https://docs.djangoproject.com/en/5.0/topics/i18n/
 

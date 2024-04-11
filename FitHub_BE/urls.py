@@ -14,13 +14,26 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+
+
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
+from drf_yasg import openapi
+from drf_yasg.views import get_schema_view
+
+from rest_framework import permissions
 
 from authorisation.views import RegisterAPIView, LoginAPIView
-
+schema_view = get_schema_view(
+    openapi.Info(
+        title="FitHub API",
+        default_version="v1"
+    ),
+    public=True,
+    permission_classes=(permissions.AllowAny,)
+)
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('register/', RegisterAPIView.as_view(), name='register'),
-    path('login/', LoginAPIView.as_view(), name='login'),
+    path('auth/', include('authorisation.urls')),
+
 ]
