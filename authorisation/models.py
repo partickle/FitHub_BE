@@ -2,13 +2,10 @@ import random
 import string
 
 from django.contrib.auth.hashers import check_password
-from django.db import models
 from django.contrib.auth.models import AbstractUser
-
-from django.utils import timezone
-
 from django.contrib.auth.models import User
 from django.db import models
+from django.utils import timezone
 
 from FitHub_BE import settings
 

@@ -16,12 +16,6 @@ Including another URLconf
 """
 from django.contrib import admin
 
-from django.urls import path
-
-urlpatterns = [
-    path('admin/', admin.site.urls),
-]
-
 from django.urls import path, include, re_path
 from django.views.generic import RedirectView
 from drf_yasg import openapi
@@ -37,7 +31,7 @@ schema_view = get_schema_view(
         default_version="v1"
     ),
     public=True,
-    permission_classes=(permissions.AllowAny,)
+    permission_classes=[permissions.AllowAny, ]
 )
 urlpatterns = [
                   path('admin/', admin.site.urls),

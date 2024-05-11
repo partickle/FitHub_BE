@@ -1,10 +1,8 @@
 
+from django.urls import path
+
 from .views import CourseListView, CourseDetailView, WorkoutListView, WorkoutDetailView, ExerciseListView, \
     ExerciseDetailView
-from drf_yasg.views import get_schema_view
-from drf_yasg import openapi
-from rest_framework.permissions import AllowAny
-from django.urls import path, include
 
 urlpatterns = [
     path('courses/', CourseListView.as_view(), name='course-list'),

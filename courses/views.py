@@ -1,4 +1,3 @@
-from drf_yasg.utils import swagger_auto_schema
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -17,9 +16,8 @@ class CourseListView(APIView):
 
 class CourseDetailView(APIView):
 
-
     def get(self, request, pk):
-        
+
         course = Course.objects.get(id=pk)
         serializer = CourseDetailSerializer(course)
         return Response(serializer.data, status=status.HTTP_200_OK)
