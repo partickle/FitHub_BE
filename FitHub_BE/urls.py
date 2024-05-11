@@ -15,13 +15,13 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-<<<<<<< Updated upstream
+
 from django.urls import path
 
 urlpatterns = [
     path('admin/', admin.site.urls),
 ]
-=======
+
 from django.urls import path, include, re_path
 from django.views.generic import RedirectView
 from drf_yasg import openapi
@@ -30,7 +30,6 @@ from django.conf.urls.static import static
 from django.conf import settings
 
 from rest_framework import permissions
-
 
 schema_view = get_schema_view(
     openapi.Info(
@@ -41,19 +40,18 @@ schema_view = get_schema_view(
     permission_classes=(permissions.AllowAny,)
 )
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('auth/', include([
-        path('', include('djoser.urls')),
-        path('', include('djoser.urls.authtoken')),
-        path('', include('djoser.urls.jwt')),
-        path('', include('authorisation.urls')),
-    ])),
-    path('api/v1/', include('courses.urls')),
-    #path('api/v1/', include('trainings.urls')),
-    #path('api/v1/', include('exercises.urls')),
+                  path('admin/', admin.site.urls),
+                  path('auth/', include([
+                      path('', include('djoser.urls')),
+                      path('', include('djoser.urls.authtoken')),
+                      path('', include('djoser.urls.jwt')),
+                      path('', include('authorisation.urls')),
+                  ])),
+                  path('api/v1/', include('courses.urls')),
+                  # path('api/v1/', include('trainings.urls')),
+                  # path('api/v1/', include('exercises.urls')),
 
-    path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
-    path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
-    re_path(r'^favicon\.ico$', RedirectView.as_view(url='/static/images/favicon.ico', permanent=True)),
-] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
->>>>>>> Stashed changes
+                  path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
+                  path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
+                  re_path(r'^favicon\.ico$', RedirectView.as_view(url='/static/images/favicon.ico', permanent=True)),
+              ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

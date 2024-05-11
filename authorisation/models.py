@@ -1,45 +1,35 @@
-<<<<<<< Updated upstream
-=======
 import random
 import string
 
+from django.contrib.auth.hashers import check_password
 from django.db import models
 from django.contrib.auth.models import AbstractUser
->>>>>>> Stashed changes
+
 from django.utils import timezone
 
 from django.contrib.auth.models import User
 from django.db import models
 
-
-<<<<<<< Updated upstream
-class UserProfile(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
-=======
-class CustomUser(AbstractUser):
->>>>>>> Stashed changes
-    photo = models.ImageField(upload_to='profile_photos/', null=True, blank=True)
-    registration_date = models.DateTimeField(default=timezone.now)
-
-
-<<<<<<< Updated upstream
-=======
-    def check_password(self, raw_password):
-        return check_password(raw_password, self.password)
+from FitHub_BE import settings
 
 
 class UserProfile(models.Model):
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='profile')
 
 
->>>>>>> Stashed changes
+class CustomUser(AbstractUser):
+    photo = models.ImageField(upload_to='profile_photos/', null=True, blank=True)
+    registration_date = models.DateTimeField(default=timezone.now)
+
+    def check_password(self, raw_password):
+        return check_password(raw_password, self.password)
+
+
 class PremiumSubscription(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='premium_subscriptions')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='premium_subscriptions')
     start_date = models.DateTimeField()
     end_date = models.DateTimeField()
     is_active = models.BooleanField(default=False)
-<<<<<<< Updated upstream
-=======
 
     def is_subscription_active(self):
         return self.is_active and self.start_date <= timezone.now() <= self.end_date
@@ -71,4 +61,3 @@ class ActivationCode(models.Model):
             return False
         except cls.DoesNotExist:
             return False
->>>>>>> Stashed changes

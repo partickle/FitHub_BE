@@ -1,8 +1,3 @@
-<<<<<<< Updated upstream
-from django.shortcuts import render
-
-# Create your views here.
-=======
 from django.core.mail import send_mail, EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
@@ -95,36 +90,3 @@ class VerifyActivationCodeView(APIView):
             return Response({"message": "Activation code is valid."}, status=status.HTTP_200_OK)
         else:
             return Response({"error": "Invalid or expired activation code."}, status=status.HTTP_400_BAD_REQUEST)
-
-# class RefreshTokenView(APIView):
-#     permission_classes = (IsAuthenticated,)
-#
-#     def get(self, request):
-#         user = request.user
-#         refresh = RefreshToken.for_user(user)
-#
-#         return Response({
-#             'refresh': str(refresh),
-#             'access': str(refresh.access_token),
-#         }, status=status.HTTP_200_OK)
-
-
-# class ResetPasswordRequest(APIView):
-#    def post(self, request, *args, **kwargs):
-#        email = request.data.get('email')  # Используйте request.data для DRF
-#
-#        user = User.objects.filter(email=email).first()
-#        if user:
-#            # Подготавливаем и отправляем письмо
-#            subject = "Password Reset Request"
-#            message = "Hi, you have requested a password reset. Please contact our support if you didn't make this request."
-#            from_email = 'fithub.csv@gmail.com'  # Это ваш отправительский email
-#            recipient_list = [email]  # Список получателей, в данном случае один получатель
-#
-#            send_mail(subject, message, from_email, recipient_list, fail_silently=False)
-#
-#            return JsonResponse({'message': 'Email sent successfully'}, status=200)
-#        else:
-#            # Если пользователь с таким email не найден, возвращаем ошибку
-#            return JsonResponse({'error': 'User not found'}, status=404)
->>>>>>> Stashed changes

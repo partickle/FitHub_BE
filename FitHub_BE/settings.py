@@ -9,13 +9,11 @@ https://docs.djangoproject.com/en/5.0/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.0/ref/settings/
 """
-<<<<<<< Updated upstream
 
-=======
 import logging
 import os
 from datetime import timedelta
->>>>>>> Stashed changes
+
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -34,30 +32,23 @@ SECRET_KEY = os.environ.get('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
-
+ALLOWED_HOSTS = ['*']
 
 # Application definition
 
 INSTALLED_APPS = [
     'authorisation',
-<<<<<<< Updated upstream
-=======
     'courses',
     'drf_yasg',
->>>>>>> Stashed changes
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-<<<<<<< Updated upstream
-=======
     'django_extensions',
     'djoser',
     'rest_framework.authtoken',
->>>>>>> Stashed changes
 ]
 
 MIDDLEWARE = [
@@ -91,7 +82,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'FitHub_BE.wsgi.application'
 
-
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
@@ -106,9 +96,9 @@ DATABASES = {
     }
 }
 
-
 # Password validation
 # https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators
+AUTH_USER_MODEL = 'authorisation.CustomUser'
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -125,9 +115,6 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-<<<<<<< Updated upstream
-
-=======
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -142,15 +129,16 @@ DJOSER = {
     'SEND_ACTIVATION_EMAIL': True,
     'SERIALIZERS': {},
     'EMAIL': {
-            'password_reset': 'path.to.custom_email.CustomPasswordResetEmail',
-        },
+        'password_reset': 'path.to.custom_email.CustomPasswordResetEmail',
+    },
 }
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
-    'ROTATE_REFRESH_TOKENS': True,                  # Если True, каждый раз при обновлении токена будет выдаваться новый токен обновления
-    'BLACKLIST_AFTER_ROTATION': True,                # Если True, старые токены обновления добавляются в черный список при их замене
+    'ROTATE_REFRESH_TOKENS': True,
+    # Если True, каждый раз при обновлении токена будет выдаваться новый токен обновления
+    'BLACKLIST_AFTER_ROTATION': True,  # Если True, старые токены обновления добавляются в черный список при их замене
     'UPDATE_LAST_LOGIN': False,
 
     'ALGORITHM': 'HS256',
@@ -163,7 +151,7 @@ SIMPLE_JWT = {
     'USER_ID_CLAIM': 'user_id',
     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
 }
->>>>>>> Stashed changes
+
 # Internationalization
 # https://docs.djangoproject.com/en/5.0/topics/i18n/
 
@@ -174,7 +162,6 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 
 USE_TZ = True
-
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -193,7 +180,6 @@ DEFAULT_FROM_EMAIL = os.getenv('EMAIL')
 EMAIL_HOST_USER = os.getenv('EMAIL')
 EMAIL_HOST_PASSWORD = os.getenv('PASSWORD')
 EMAIL_USE_TLS = True
-
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.0/howto/static-files/
