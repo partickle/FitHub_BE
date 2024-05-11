@@ -1,0 +1,1832 @@
+diff --git a/.github/workflows/check.yml b/.github/workflows/check.yml
+new file mode 100644
+index 0000000..e457e86
+--- /dev/null
++++ b/.github/workflows/check.yml
+@@ -0,0 +1,26 @@
++name: Django CI
++
++on: push
++
++jobs:
++  build:
++    runs-on: ubuntu-latest
++
++    steps:
++    - uses: actions/checkout@v3
++      name: Checkout code
++
++    - name: Set up Python
++      uses: actions/setup-python@v2
++      with:
++        python-version: '3.12'
++
++    - name: Install dependencies
++      run: |
++        python -m pip install --upgrade pip
++        pip install -r requirements.txt 
++
++    - name: Lint with flake8
++      run: |
++        pip install flake8
++        flake8 .  
+diff --git a/FitHub_BE/settings.py b/FitHub_BE/settings.py
+index 3c6a887..8234b40 100644
+--- a/FitHub_BE/settings.py
++++ b/FitHub_BE/settings.py
+@@ -9,18 +9,23 @@ https://docs.djangoproject.com/en/5.0/topics/settings/
+ For the full list of settings and their values, see
+ https://docs.djangoproject.com/en/5.0/ref/settings/
+ """
+-
++import logging
++import os
++from datetime import timedelta
+ from pathlib import Path
+ 
++from dotenv import load_dotenv
++
+ # Build paths inside the project like this: BASE_DIR / 'subdir'.
+ BASE_DIR = Path(__file__).resolve().parent.parent
+ 
++load_dotenv()
+ 
+ # Quick-start development settings - unsuitable for production
+ # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
+ 
+ # SECURITY WARNING: keep the secret key used in production secret!
+-SECRET_KEY = 'django-insecure-3w&189t-p%*%!g373)34r9#pvdz#s%#7532_qs66e-*%(6*@-x'
++SECRET_KEY = os.environ.get('SECRET_KEY')
+ 
+ # SECURITY WARNING: don't run with debug turned on in production!
+ DEBUG = True
+@@ -34,6 +39,7 @@ INSTALLED_APPS = [
+     'rest_framework_simplejwt',
+     'rest_framework',
+     'authorisation',
++    'courses',
+     'drf_yasg',
+     'django.contrib.admin',
+     'django.contrib.auth',
+@@ -42,6 +48,8 @@ INSTALLED_APPS = [
+     'django.contrib.messages',
+     'django.contrib.staticfiles',
+     'django_extensions',
++    'djoser',
++    'rest_framework.authtoken',
+ ]
+ 
+ MIDDLEWARE = [
+@@ -86,7 +94,7 @@ DATABASES = {
+         'ENGINE': 'django.db.backends.postgresql',
+         'NAME': 'FitHub',
+         'USER': 'postgres',
+-        'PASSWORD': '1332',
++        'PASSWORD': os.getenv('PASSWORD_DB'),
+         'HOST': 'localhost',
+         'PORT': '5432',
+     }
+@@ -116,19 +124,70 @@ AUTH_PASSWORD_VALIDATORS = [
+ REST_FRAMEWORK = {
+     'DEFAULT_AUTHENTICATION_CLASSES': (
+         'rest_framework_simplejwt.authentication.JWTAuthentication',
++        'rest_framework.authentication.TokenAuthentication',
+     )
+ }
++
++DJOSER = {
++    'PASSWORD_RESET_CONFIRM_URL': '#/password/reset/confirm/{uid}/{token}',
++    'USERNAME_RESET_CONFIRM_URL': '#/username/reset/confirm/{uid}/{token}',
++    'ACTIVATION_URL': '#/activate/{uid}/{token}',
++    'SEND_ACTIVATION_EMAIL': True,
++    'SERIALIZERS': {},
++    'EMAIL': {
++            'password_reset': 'path.to.custom_email.CustomPasswordResetEmail',
++        },
++}
++
++SIMPLE_JWT = {
++    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
++    'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
++    'ROTATE_REFRESH_TOKENS': True,                  # Если True, каждый раз при обновлении токена будет выдаваться новый токен обновления
++    'BLACKLIST_AFTER_ROTATION': True,                # Если True, старые токены обновления добавляются в черный список при их замене
++    'UPDATE_LAST_LOGIN': False,
++
++    'ALGORITHM': 'HS256',
++    'VERIFYING_KEY': None,
++    'AUDIENCE': None,
++    'ISSUER': None,
++    'AUTH_HEADER_TYPES': ('Bearer',),
++    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
++    'USER_ID_FIELD': 'id',
++    'USER_ID_CLAIM': 'user_id',
++    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
++}
+ # Internationalization
+ # https://docs.djangoproject.com/en/5.0/topics/i18n/
+ 
+ LANGUAGE_CODE = 'en-us'
+ 
+-TIME_ZONE = 'UTC'
++TIME_ZONE = 'Europe/Moscow'
+ 
+ USE_I18N = True
+ 
+ USE_TZ = True
+ 
++MEDIA_URL = '/media/'
++MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
++
++logging.basicConfig(level=logging.DEBUG)
++
++# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
++# EMAIL_HOST = 'smtp.mailgun.org'
++# EMAIL_HOST_USER = 'postmaster@sandbox0dfe4bef81ba42348c3e7f8b092d7571.mailgun.org'
++# EMAIL_HOST_PASSWORD = 'ddfe85d4b7d9c02f4a67d989ec7638ee-2175ccc2-459ba1bc'
++# EMAIL_PORT = 587
++# EMAIL_USE_TLS = True
++# EMAIL_USE_SSL = True
++
++EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
++EMAIL_HOST = 'smtp.yandex.com'
++EMAIL_PORT = 587
++DEFAULT_FROM_EMAIL = os.getenv('EMAIL')
++EMAIL_HOST_USER = os.getenv('EMAIL')
++EMAIL_HOST_PASSWORD = os.getenv('PASSWORD')
++EMAIL_USE_TLS = True
++
+ 
+ # Static files (CSS, JavaScript, Images)
+ # https://docs.djangoproject.com/en/5.0/howto/static-files/
+diff --git a/FitHub_BE/urls.py b/FitHub_BE/urls.py
+index 926ad49..b49b987 100644
+--- a/FitHub_BE/urls.py
++++ b/FitHub_BE/urls.py
+@@ -17,13 +17,16 @@ Including another URLconf
+ 
+ 
+ from django.contrib import admin
+-from django.urls import path, include
++from django.urls import path, include, re_path
++from django.views.generic import RedirectView
+ from drf_yasg import openapi
+ from drf_yasg.views import get_schema_view
++from django.conf.urls.static import static
++from django.conf import settings
+ 
+ from rest_framework import permissions
+ 
+-from authorisation.views import RegisterAPIView, LoginAPIView
++
+ schema_view = get_schema_view(
+     openapi.Info(
+         title="FitHub API",
+@@ -34,6 +37,17 @@ schema_view = get_schema_view(
+ )
+ urlpatterns = [
+     path('admin/', admin.site.urls),
+-    path('auth/', include('authorisation.urls')),
++    path('auth/', include([
++        path('', include('djoser.urls')),
++        path('', include('djoser.urls.authtoken')),
++        path('', include('djoser.urls.jwt')),
++        path('', include('authorisation.urls')),
++    ])),
++    path('api/v1/', include('courses.urls')),
++    #path('api/v1/', include('trainings.urls')),
++    #path('api/v1/', include('exercises.urls')),
+ 
+-]
++    path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
++    path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
++    re_path(r'^favicon\.ico$', RedirectView.as_view(url='/static/images/favicon.ico', permanent=True)),
++] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+diff --git a/authorisation/models.py b/authorisation/models.py
+index 9641e59..35de3db 100644
+--- a/authorisation/models.py
++++ b/authorisation/models.py
+@@ -1,3 +1,6 @@
++import random
++import string
++
+ from django.db import models
+ from django.contrib.auth.models import AbstractUser
+ from django.utils import timezone
+@@ -5,9 +8,7 @@ from django.conf import settings
+ from django.contrib.auth.hashers import make_password, check_password
+ 
+ 
+-# Кастомизированная модель пользователя
+ class CustomUser(AbstractUser):
+-    # Дополнительные поля могут быть добавлены сюда
+     photo = models.ImageField(upload_to='profile_photos/', null=True, blank=True)
+     registration_date = models.DateTimeField(default=timezone.now)
+ 
+@@ -18,13 +19,10 @@ class CustomUser(AbstractUser):
+         return check_password(raw_password, self.password)
+ 
+ 
+-# Профиль пользователя
+ class UserProfile(models.Model):
+     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='profile')
+-    # Можно добавить дополнительные поля, если это необходимо, но основные уже включены в CustomUser
+ 
+ 
+-# Модель премиум подписки
+ class PremiumSubscription(models.Model):
+     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='premium_subscriptions')
+     start_date = models.DateTimeField()
+@@ -32,5 +30,32 @@ class PremiumSubscription(models.Model):
+     is_active = models.BooleanField(default=False)
+ 
+     def is_subscription_active(self):
+-        # Этот метод можно использовать для проверки активности подписки
+         return self.is_active and self.start_date <= timezone.now() <= self.end_date
++
++
++def generate_activation_code():
++    digits = string.digits
++    return ''.join(random.choice(digits) for _ in range(6))
++
++
++class ActivationCode(models.Model):
++    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
++    code = models.CharField(max_length=6, default=generate_activation_code)
++    created_at = models.DateTimeField(auto_now_add=True)
++
++    def is_valid(self):
++        return (timezone.now() - self.created_at).seconds < 3600
++
++    @classmethod
++    def verify_code(cls, user_id, code):
++        """
++        Проверяет, что введенный код совпадает с сохраненным для пользователя и что он все еще действителен.
++        Возвращает True, если код действителен, иначе False.
++        """
++        try:
++            code_obj = cls.objects.get(user_id=user_id, code=code)
++            if code_obj.is_valid():
++                return True
++            return False
++        except cls.DoesNotExist:
++            return False
+diff --git a/authorisation/serializers.py b/authorisation/serializers.py
+index dfb905a..31908e0 100644
+--- a/authorisation/serializers.py
++++ b/authorisation/serializers.py
+@@ -1,3 +1,5 @@
++import random
++
+ from django.contrib.auth import get_user_model
+ from rest_framework import serializers
+ from .models import UserProfile
+@@ -5,19 +7,20 @@ from .models import UserProfile
+ User = get_user_model()
+ 
+ 
+-class UserSerializer(serializers.ModelSerializer):
++class MyUserSerializer(serializers.ModelSerializer):
+     class Meta:
+         model = User
+         fields = ('id', 'username', 'email', 'password')
+         extra_kwargs = {'password': {'write_only': True}}
+ 
+     def create(self, validated_data):
+-        # Создание пользователя, а не профиля пользователя.
++
+         user = User.objects.create_user(
+             username=validated_data['username'],
+             email=validated_data['email'],
+             password=validated_data['password']
+         )
+-        # Вы можете здесь создать профиль пользователя, если нужно
++
+         UserProfile.objects.create(user=user)
+         return user
++
+diff --git a/authorisation/urls.py b/authorisation/urls.py
+index c8fee79..092223e 100644
+--- a/authorisation/urls.py
++++ b/authorisation/urls.py
+@@ -4,11 +4,14 @@ from rest_framework_simplejwt.views import (
+     TokenRefreshView,
+ )
+ 
+-from authorisation.views import RegisterAPIView, LoginAPIView
++from authorisation.views import RegisterAPIView, LoginAPIView, SendActivationCodeView, VerifyActivationCodeView
+ 
+ urlpatterns = [
+     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+-    path('register/', RegisterAPIView.as_view(), name='register'),
+-    path('login/', LoginAPIView.as_view(), name='login'),
++    path('send-activation/', SendActivationCodeView.as_view(), name='send-activation-code'),
++    path('verify/', VerifyActivationCodeView.as_view(), name='verify-activation-code'),
++    #path('register/', RegisterAPIView.as_view(), name='register'),
++    #path('login/', LoginAPIView.as_view(), name='login'),
++
+ ]
+\ No newline at end of file
+diff --git a/authorisation/views.py b/authorisation/views.py
+index 4948b5d..1e374e0 100644
+--- a/authorisation/views.py
++++ b/authorisation/views.py
+@@ -1,33 +1,124 @@
++from django.core.mail import send_mail, EmailMultiAlternatives
++from django.template.loader import render_to_string
++from django.utils.html import strip_tags
++
+ from rest_framework import generics, permissions, response, status
+ from django.contrib.auth import authenticate
+ 
+-from .serializers import UserSerializer
++from rest_framework.response import Response
++from rest_framework.views import APIView
++from rest_framework_simplejwt.tokens import RefreshToken
++
++from FitHub_BE import settings
++from .models import ActivationCode, generate_activation_code
++from .serializers import MyUserSerializer, User
+ 
+ 
+ class RegisterAPIView(generics.GenericAPIView):
+-    serializer_class = UserSerializer
++    serializer_class = MyUserSerializer
+ 
+     def post(self, request):
+         serializer = self.get_serializer(data=request.data)
+         if serializer.is_valid():
+             user = serializer.save()
+             return response.Response({
+-                "user": UserSerializer(user).data,
++                "user": MyUserSerializer(user).data,
+                 "message": "User Created Successfully."
+             }, status=status.HTTP_201_CREATED)
+         return response.Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+ 
+ 
+ class LoginAPIView(generics.GenericAPIView):
+-    serializer_class = UserSerializer
++    serializer_class = MyUserSerializer
+ 
+     def post(self, request):
+         username = request.data.get('username')
+         password = request.data.get('password')
+         user = authenticate(username=username, password=password)
+         if user:
++            refresh = RefreshToken.for_user(user)
+             return response.Response({
+-                "user": UserSerializer(user).data,
++                "user": MyUserSerializer(user).data,
++                "refresh": str(refresh),
++                "access": str(refresh.access_token),
+                 "message": "User Logged In Successfully."
+             }, status=status.HTTP_200_OK)
+         return response.Response({"message": "Invalid Credentials"}, status=status.HTTP_401_UNAUTHORIZED)
++
++
++class SendActivationCodeView(APIView):
++    def post(self, request, *args, **kwargs):
++        email = request.data.get("email")
++        if not email:
++            return Response({"error": "Email is required"}, status=status.HTTP_400_BAD_REQUEST)
++
++        try:
++            user = User.objects.get(email=email)
++        except User.DoesNotExist:
++            return Response({"error": "User with this email does not exist"}, status=status.HTTP_404_NOT_FOUND)
++
++        code_obj, created = ActivationCode.objects.update_or_create(
++            user=user,
++            defaults={'code': generate_activation_code()}
++        )
++
++        context = {'code': code_obj.code, 'user': user}
++        html_content = render_to_string('activation_email.html', context)
++        text_content = strip_tags(html_content)
++
++        email = EmailMultiAlternatives(
++            'Your Activation Code',
++            text_content,
++            settings.DEFAULT_FROM_EMAIL,
++            [email]
++        )
++        email.attach_alternative(html_content, "text/html")
++        email.send()
++
++        return Response({"message": "Activation code sent to email"}, status=status.HTTP_200_OK)
++
++
++class VerifyActivationCodeView(APIView):
++    def post(self, request, *args, **kwargs):
++        user_id = request.data.get('user_id')
++        code = request.data.get('code')
++
++        if not user_id or not code:
++            return Response({"error": "Both user_id and code must be provided."}, status=status.HTTP_400_BAD_REQUEST)
++
++        if ActivationCode.verify_code(user_id, code):
++            return Response({"message": "Activation code is valid."}, status=status.HTTP_200_OK)
++        else:
++            return Response({"error": "Invalid or expired activation code."}, status=status.HTTP_400_BAD_REQUEST)
++
++# class RefreshTokenView(APIView):
++#     permission_classes = (IsAuthenticated,)
++#
++#     def get(self, request):
++#         user = request.user
++#         refresh = RefreshToken.for_user(user)
++#
++#         return Response({
++#             'refresh': str(refresh),
++#             'access': str(refresh.access_token),
++#         }, status=status.HTTP_200_OK)
++
++
++# class ResetPasswordRequest(APIView):
++#    def post(self, request, *args, **kwargs):
++#        email = request.data.get('email')  # Используйте request.data для DRF
++#
++#        user = User.objects.filter(email=email).first()
++#        if user:
++#            # Подготавливаем и отправляем письмо
++#            subject = "Password Reset Request"
++#            message = "Hi, you have requested a password reset. Please contact our support if you didn't make this request."
++#            from_email = 'fithub.csv@gmail.com'  # Это ваш отправительский email
++#            recipient_list = [email]  # Список получателей, в данном случае один получатель
++#
++#            send_mail(subject, message, from_email, recipient_list, fail_silently=False)
++#
++#            return JsonResponse({'message': 'Email sent successfully'}, status=200)
++#        else:
++#            # Если пользователь с таким email не найден, возвращаем ошибку
++#            return JsonResponse({'error': 'User not found'}, status=404)
+diff --git a/courses/__init__.py b/courses/__init__.py
+new file mode 100644
+index 0000000..e69de29
+diff --git a/courses/admin.py b/courses/admin.py
+new file mode 100644
+index 0000000..341f825
+--- /dev/null
++++ b/courses/admin.py
+@@ -0,0 +1,19 @@
++from django.contrib import admin
++
++from courses.models import Course, Tag, Workout, Exercise
++
++
++class CourseAdmin(admin.ModelAdmin):
++    list_display = ('name',)
++    filter_horizontal = ('workouts', 'tags')
++
++
++class WorkoutAdmin(admin.ModelAdmin):
++    list_display = ('name',)
++    filter_horizontal = ('exercises',)
++
++
++admin.site.register(Course, CourseAdmin)
++admin.site.register(Tag)
++admin.site.register(Workout, WorkoutAdmin)
++admin.site.register(Exercise)
+diff --git a/courses/apps.py b/courses/apps.py
+new file mode 100644
+index 0000000..019ba91
+--- /dev/null
++++ b/courses/apps.py
+@@ -0,0 +1,6 @@
++from django.apps import AppConfig
++
++
++class CoursesConfig(AppConfig):
++    default_auto_field = 'django.db.models.BigAutoField'
++    name = 'courses'
+diff --git a/courses/migrations/0001_initial.py b/courses/migrations/0001_initial.py
+new file mode 100644
+index 0000000..cff73c4
+--- /dev/null
++++ b/courses/migrations/0001_initial.py
+@@ -0,0 +1,27 @@
++# Generated by Django 5.0.4 on 2024-04-22 13:27
++
++from django.db import migrations, models
++
++
++class Migration(migrations.Migration):
++
++    initial = True
++
++    dependencies = [
++    ]
++
++    operations = [
++        migrations.CreateModel(
++            name='Course',
++            fields=[
++                ('id', models.IntegerField(primary_key=True, serialize=False)),
++                ('name', models.CharField(max_length=100)),
++                ('description', models.TextField()),
++                ('duration', models.IntegerField(help_text='Total duration in days')),
++                ('category', models.CharField(max_length=100)),
++                ('image', models.ImageField(blank=True, null=True, upload_to='images/')),
++                ('video', models.FileField(blank=True, null=True, upload_to='videos/')),
++                ('status', models.CharField(choices=[('completed', 'Completed'), ('in progres', 'In progres'), ('inactive', 'Inactive')], default='Inactive', max_length=20)),
++            ],
++        ),
++    ]
+diff --git a/courses/migrations/0002_course_is_pro.py b/courses/migrations/0002_course_is_pro.py
+new file mode 100644
+index 0000000..d907c91
+--- /dev/null
++++ b/courses/migrations/0002_course_is_pro.py
+@@ -0,0 +1,18 @@
++# Generated by Django 5.0.4 on 2024-04-22 13:36
++
++from django.db import migrations, models
++
++
++class Migration(migrations.Migration):
++
++    dependencies = [
++        ('courses', '0001_initial'),
++    ]
++
++    operations = [
++        migrations.AddField(
++            model_name='course',
++            name='is_pro',
++            field=models.BooleanField(default=False),
++        ),
++    ]
+diff --git a/courses/migrations/0003_remove_course_video_alter_course_category.py b/courses/migrations/0003_remove_course_video_alter_course_category.py
+new file mode 100644
+index 0000000..9e1049f
+--- /dev/null
++++ b/courses/migrations/0003_remove_course_video_alter_course_category.py
+@@ -0,0 +1,22 @@
++# Generated by Django 5.0.4 on 2024-04-22 13:48
++
++from django.db import migrations, models
++
++
++class Migration(migrations.Migration):
++
++    dependencies = [
++        ('courses', '0002_course_is_pro'),
++    ]
++
++    operations = [
++        migrations.RemoveField(
++            model_name='course',
++            name='video',
++        ),
++        migrations.AlterField(
++            model_name='course',
++            name='category',
++            field=models.CharField(choices=[('beginner', 'Beginner'), ('intermediate', 'Intermediate'), ('advance', 'Advance')], default='beginner', max_length=20),
++        ),
++    ]
+diff --git a/courses/migrations/0004_alter_course_id.py b/courses/migrations/0004_alter_course_id.py
+new file mode 100644
+index 0000000..518fb33
+--- /dev/null
++++ b/courses/migrations/0004_alter_course_id.py
+@@ -0,0 +1,18 @@
++# Generated by Django 5.0.4 on 2024-04-22 14:32
++
++from django.db import migrations, models
++
++
++class Migration(migrations.Migration):
++
++    dependencies = [
++        ('courses', '0003_remove_course_video_alter_course_category'),
++    ]
++
++    operations = [
++        migrations.AlterField(
++            model_name='course',
++            name='id',
++            field=models.AutoField(primary_key=True, serialize=False),
++        ),
++    ]
+diff --git a/courses/migrations/0008_course_owner.py b/courses/migrations/0008_course_owner.py
+new file mode 100644
+index 0000000..70320ae
+--- /dev/null
++++ b/courses/migrations/0008_course_owner.py
+@@ -0,0 +1,21 @@
++# Generated by Django 5.0.5 on 2024-05-08 11:55
++
++import django.db.models.deletion
++from django.conf import settings
++from django.db import migrations, models
++
++
++class Migration(migrations.Migration):
++
++    dependencies = [
++        ('courses', '0007_rename_courses_course_rename_exercises_exercise_and_more'),
++        migrations.swappable_dependency(settings.AUTH_USER_MODEL),
++    ]
++
++    operations = [
++        migrations.AddField(
++            model_name='course',
++            name='owner',
++            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='courses', to=settings.AUTH_USER_MODEL),
++        ),
++    ]
+diff --git a/courses/migrations/0009_alter_course_workouts.py b/courses/migrations/0009_alter_course_workouts.py
+new file mode 100644
+index 0000000..6a6f345
+--- /dev/null
++++ b/courses/migrations/0009_alter_course_workouts.py
+@@ -0,0 +1,18 @@
++# Generated by Django 5.0.5 on 2024-05-11 13:33
++
++from django.db import migrations, models
++
++
++class Migration(migrations.Migration):
++
++    dependencies = [
++        ('courses', '0008_course_owner'),
++    ]
++
++    operations = [
++        migrations.AlterField(
++            model_name='course',
++            name='workouts',
++            field=models.ManyToManyField(blank=True, related_name='courses', to='courses.workout'),
++        ),
++    ]
+diff --git a/courses/migrations/__init__.py b/courses/migrations/__init__.py
+new file mode 100644
+index 0000000..e69de29
+diff --git a/courses/models.py b/courses/models.py
+new file mode 100644
+index 0000000..f9e21eb
+--- /dev/null
++++ b/courses/models.py
+@@ -0,0 +1,76 @@
++from django.db import models
++
++from authorisation.models import CustomUser
++
++
++class Tag(models.Model):
++    name = models.CharField(max_length=100, unique=True)
++
++    def __str__(self):
++        return self.name
++
++
++class Course(models.Model):
++    STATUS_CHOICES = (
++        ('completed', 'Completed'),
++        ('in progress', 'In progress'),
++        ('inactive', 'Inactive'),
++    )
++    LEVEL_CHOICES = [
++        ('beginner', 'Beginner'),
++        ('intermediate', 'Intermediate'),
++        ('advanced', 'Advanced'),
++    ]
++    id = models.AutoField(primary_key=True)
++    name = models.CharField(max_length=100)
++    description = models.TextField()
++    duration = models.IntegerField(help_text="Total duration in days")
++    category = models.CharField(max_length=20, choices=LEVEL_CHOICES, default='beginner')
++    image = models.ImageField(upload_to='images/', blank=True, null=True)
++    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='inactive')
++    is_pro = models.BooleanField(default=False)
++    workouts = models.ManyToManyField('Workout', related_name='courses', blank=True)
++    tags = models.ManyToManyField(Tag, related_name='courses')
++    hidden = models.BooleanField(default=False)
++    owner = models.ForeignKey(CustomUser, related_name='courses', on_delete=models.SET_NULL, null=True, blank=True)
++
++    def __str__(self):
++        return self.name
++
++
++class Workout(models.Model):
++    STATUS_CHOICES = (
++        ('completed', 'Completed'),
++        ('in progress', 'In progress'),
++        ('inactive', 'Inactive'),
++    )
++    id = models.AutoField(primary_key=True)
++    name = models.CharField(max_length=100)
++    description = models.TextField()
++    duration = models.IntegerField(help_text="Duration in minutes")
++    category = models.CharField(max_length=100)
++    image = models.ImageField(upload_to='images/', blank=True, null=True)
++    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='inactive')
++    exercises = models.ManyToManyField('Exercise', related_name='workouts')
++
++    def __str__(self):
++        return self.name
++
++
++class Exercise(models.Model):
++    STATUS_CHOICES = (
++        ('completed', 'Completed'),
++        ('in progress', 'In progress'),
++        ('inactive', 'Inactive'),
++    )
++    id = models.AutoField(primary_key=True)
++    name = models.CharField(max_length=100)
++    description = models.TextField()
++    duration = models.IntegerField(help_text="Duration in seconds")
++    category = models.CharField(max_length=100)
++    image = models.ImageField(upload_to='exercises/images/', blank=True, null=True)
++    video = models.FileField(upload_to='exercises/videos/', blank=True, null=True)
++    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='inactive')
++
++    def __str__(self):
++        return self.name
+diff --git a/courses/serializers.py b/courses/serializers.py
+new file mode 100644
+index 0000000..3ee3bab
+--- /dev/null
++++ b/courses/serializers.py
+@@ -0,0 +1,77 @@
++from rest_framework import serializers
++from .models import Course, Exercise, Workout, Tag
++
++
++class CourseSerializer(serializers.ModelSerializer):
++    class Meta:
++        model = Course
++        fields = ['id', 'name', 'category', 'image', 'is_pro']
++
++
++class TagSerializer(serializers.ModelSerializer):
++    class Meta:
++        model = Tag
++        fields = ['id', 'name']
++
++
++class WorkoutToCourseSerializer(serializers.ModelSerializer):
++    class Meta:
++        model = Workout
++        fields = ['id', 'name']
++
++
++class CourseDetailSerializer(serializers.ModelSerializer):
++    workouts = WorkoutToCourseSerializer(many=True, read_only=False, required=False)
++    tags = TagSerializer(many=True, read_only=False, required=False)
++
++    class Meta:
++        model = Course
++        fields = "__all__"
++
++    def create(self, validated_data):
++        workouts_data = validated_data.pop('workouts', [])
++        tags_data = validated_data.pop('tags', [])
++        course = Course.objects.create(**validated_data)
++        for workout_data in workouts_data:
++            workout, _ = Workout.objects.get_or_create(**workout_data)
++            course.workouts.add(workout)
++        for tag_data in tags_data:
++            tag, _ = Tag.objects.get_or_create(**tag_data)
++            course.tags.add(tag)
++        return course
++
++    def update(self, instance, validated_data):
++        instance.workouts.clear()
++        instance.tags.clear()
++        workouts_data = validated_data.pop('workouts', [])
++        tags_data = validated_data.pop('tags', [])
++        for workout_data in workouts_data:
++            workout, _ = Workout.objects.get_or_create(**workout_data)
++            instance.workouts.add(workout)
++        for tag_data in tags_data:
++            tag, _ = Tag.objects.get_or_create(**tag_data)
++            instance.tags.add(tag)
++        return super().update(instance, validated_data)
++
++class WorkoutSerializer(serializers.ModelSerializer):
++    class Meta:
++        model = Workout
++        fields = ['id', 'name', 'category', 'image']
++
++
++class WorkoutDetailSerializer(serializers.ModelSerializer):
++    class Meta:
++        model = Workout
++        fields = "__all__"
++
++
++class ExerciseSerializer(serializers.ModelSerializer):
++    class Meta:
++        model = Exercise
++        fields = ['id', 'name', 'category', 'image', 'video']
++
++
++class ExerciseDetailSerializer(serializers.ModelSerializer):
++    class Meta:
++        model = Exercise
++        fields = "__all__"
+diff --git a/courses/tests.py b/courses/tests.py
+new file mode 100644
+index 0000000..7ce503c
+--- /dev/null
++++ b/courses/tests.py
+@@ -0,0 +1,3 @@
++from django.test import TestCase
++
++# Create your tests here.
+diff --git a/courses/urls.py b/courses/urls.py
+new file mode 100644
+index 0000000..077dced
+--- /dev/null
++++ b/courses/urls.py
+@@ -0,0 +1,16 @@
++
++from .views import CourseListView, CourseDetailView, WorkoutListView, WorkoutDetailView, ExerciseListView, \
++    ExerciseDetailView
++from drf_yasg.views import get_schema_view
++from drf_yasg import openapi
++from rest_framework.permissions import AllowAny
++from django.urls import path, include
++
++urlpatterns = [
++    path('courses/', CourseListView.as_view(), name='course-list'),
++    path('courses/detail/<int:pk>/', CourseDetailView.as_view(), name='course-detail'),
++    path('workouts/', WorkoutListView.as_view(), name='workout-list'),
++    path('workouts/<int:pk>/', WorkoutDetailView.as_view(), name='workout-detail'),
++    path('exercises/', ExerciseListView.as_view(), name='exercise-list'),
++    path('exercises/<int:pk>/', ExerciseDetailView.as_view(), name='exercise-detail'),
++]
+diff --git a/courses/views.py b/courses/views.py
+new file mode 100644
+index 0000000..5225a15
+--- /dev/null
++++ b/courses/views.py
+@@ -0,0 +1,139 @@
++from drf_yasg.utils import swagger_auto_schema
++from rest_framework import status
++from rest_framework.response import Response
++from rest_framework.views import APIView
++
++from courses.models import Course, Workout, Exercise
++from courses.serializers import CourseSerializer, CourseDetailSerializer, WorkoutDetailSerializer, ExerciseSerializer, \
++    ExerciseDetailSerializer, WorkoutSerializer
++
++
++class CourseListView(APIView):
++    def get(self, request):
++        courses = Course.objects.all()
++        serializer = CourseSerializer(courses, many=True)
++        return Response(serializer.data)
++
++
++class CourseDetailView(APIView):
++
++
++    def get(self, request, pk):
++        
++        course = Course.objects.get(id=pk)
++        serializer = CourseDetailSerializer(course)
++        return Response(serializer.data, status=status.HTTP_200_OK)
++
++    def post(self, request):
++        """Create a new course."""
++        serializer = CourseDetailSerializer(data=request.data)
++        if serializer.is_valid():
++            serializer.save()
++            return Response(serializer.data, status=status.HTTP_201_CREATED)
++        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
++
++    def update(self, request, pk):
++        try:
++            course = Course.objects.get(pk=pk)
++            serializer = CourseDetailSerializer(course, data=request.data)
++            if serializer.is_valid():
++                serializer.save()
++                return Response(serializer.data)
++            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
++        except Course.DoesNotExist:
++            return Response({"message": "Course not found"}, status=status.HTTP_404_NOT_FOUND)
++
++    def delete(self, request, pk):
++        try:
++            course = Course.objects.get(pk=pk)
++            course.delete()
++            return Response({"message": "Course deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
++        except Course.DoesNotExist:
++            return Response({"message": "Course not found"}, status=status.HTTP_404_NOT_FOUND)
++
++
++class WorkoutListView(APIView):
++    def get(self, request):
++        workouts = Workout.objects.all()
++        serializer = WorkoutSerializer(workouts, many=True)
++        return Response(serializer.data)
++
++
++class WorkoutDetailView(APIView):
++    def get(self, request, pk):
++        try:
++            workout = Workout.objects.get(id=pk)
++            serializer = WorkoutDetailSerializer(workout)
++            return Response(serializer.data)
++        except Workout.DoesNotExist:
++            return Response({"message": "Workout not found"}, status=status.HTTP_404_NOT_FOUND)
++
++    def post(self, request):
++        serializer = WorkoutDetailSerializer(data=request.data)
++        if serializer.is_valid():
++            serializer.save()
++            return Response(serializer.data, status=status.HTTP_201_CREATED)
++        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
++
++    def update(self, request, pk):
++        try:
++            workout = Workout.objects.get(pk=pk)
++            serializer = WorkoutDetailSerializer(workout, data=request.data)
++            if serializer.is_valid():
++                serializer.save()
++                return Response(serializer.data)
++            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
++        except Workout.DoesNotExist:
++            return Response({"message": "Workout not found"}, status=status.HTTP_404_NOT_FOUND)
++
++    def delete(self, request, pk):
++        try:
++            workout = Workout.objects.get(pk=pk)
++            workout.delete()
++            return Response({"message": "Workout deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
++        except Workout.DoesNotExist:
++            return Response({"message": "Workout not found"}, status=status.HTTP_404_NOT_FOUND)
++
++
++class ExerciseListView(APIView):
++    def get(self, request):
++        exercises = Exercise.objects.all()
++        serializer = ExerciseSerializer(exercises, many=True)
++        return Response(serializer.data)
++
++
++class ExerciseDetailView(APIView):
++
++    def get(self, request, pk):
++        try:
++            exercise = Exercise.objects.get(id=pk)
++            serializer = ExerciseDetailSerializer(exercise)
++            return Response(serializer.data)
++        except Exercise.DoesNotExist:
++            return Response({"message": "Exercise not found"}, status=status.HTTP_404_NOT_FOUND)
++
++    def post(self, request):
++        serializer = ExerciseDetailSerializer(data=request.data)
++        if serializer.is_valid():
++            serializer.save()
++            return Response(serializer.data, status=status.HTTP_201_CREATED)
++        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
++
++    def update(self, request, pk):
++        try:
++            exercise = Exercise.objects.get(pk=pk)
++            serializer = ExerciseDetailSerializer(exercise, data=request.data)
++            if serializer.is_valid():
++                serializer.save()
++                return Response(serializer.data)
++            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
++        except Exercise.DoesNotExist:
++            return Response({"message": "Exercise not found"}, status=status.HTTP_404_NOT_FOUND)
++
++    def delete(self, request, pk):
++        try:
++            exercise = Exercise.objects.get(pk=pk)
++            exercise.delete()
++            return Response({"message": "Exercise deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
++        except Exercise.DoesNotExist:
++            return Response({"message": "Exercise not found"}, status=status.HTTP_404_NOT_FOUND)
+diff --git a/media/images/logo.ico b/media/images/logo.ico
+new file mode 100644
+index 0000000..39db504
+Binary files /dev/null and b/media/images/logo.ico differ
+diff --git a/requirements.txt b/requirements.txt
+new file mode 100644
+index 0000000..f2188d8
+--- /dev/null
++++ b/requirements.txt
+@@ -0,0 +1,10 @@
++Django~=5.0.5
++djangorestframework~=3.15.1
++python-dotenv~=1.0.1
++asgiref==3.7.2
++sqlparse==0.4.4
++typing_extensions==4.10.0
++tzdata==2024.1
++drf-yasg==1.21.7
++djangorestframework-simplejwt==5.3.1
++django-extensions==3.2.3
+\ No newline at end of file
+diff --git a/templates/activation_email.html b/templates/activation_email.html
+new file mode 100644
+index 0000000..86e4625
+--- /dev/null
++++ b/templates/activation_email.html
+@@ -0,0 +1,797 @@
++<!--
++
++  -->
++<!--GLOBAL_ELEMENTS/RTM_GLOBAL_ELEMENTS-->
++<!--<table style="min-width: 100%; " class="stylingblock-content-wrapper" width="100%" cellspacing="0" cellpadding="0"><tr><td class="stylingblock-content-wrapper camarker-inner"></td></tr></table> -->
++
++
++<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
++<html xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml"
++      xmlns:o="urn:schemas-microsoft-com:office:office">
++<head>
++    <meta name="robots" content="noindex, nofollow"/>
++    <meta name="referrer" content="no-referrer"/>
++    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0"/>
++    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
++    <meta name="robots" content="no index"/>
++    <title>
++    </title>
++
++    <style>
++        @font-face {
++            font-family: 'Open sans';
++            src: url('https://ea-newsletter-assets.s3.amazonaws.com/template/empr/f/ElectronicArtsText-Regular.eot');
++            src: url('https://ea-newsletter-assets.s3.amazonaws.com/template/empr/f/ElectronicArtsText-Regular.eot?#iefix') format('embedded-opentype'), url('https://ea-newsletter-assets.s3.amazonaws.com/template/empr/f/ElectronicArtsText-Regular.woff') format('woff'), url('https://ea-newsletter-assets.s3.amazonaws.com/template/empr/f/ElectronicArtsText-Regular.ttf') format('truetype');
++            font-weight: normal;
++            font-style: normal;
++        }
++    </style>
++
++    <style type="text/css">
++        /** RESET STYLES **/
++        p {
++            margin: 1em 0;
++        }
++
++        /*Yahoo paragraph fix*/
++        table {
++            border-spacing: 0;
++        }
++
++        table td {
++            border-collapse: collapse;
++        }
++
++        .ExternalClass {
++            width: 100%;
++        }
++
++        .ExternalClass, .ExternalClass p, .ExternalClass span, .ExternalClass font, .ExternalClass td, .ExternalClass div {
++            line-height: 100%;
++        }
++
++        table {
++            mso-table-lspace: 0pt;
++            mso-table-rspace: 0pt;
++        }
++
++        td {
++            mso-line-height-rule: exactly !important;
++        }
++
++        /*This resolves the Outlook 07, 10, and Gmail td padding issue fix*/
++        img,
++        a img {
++            border: 0;
++            height: auto;
++            outline: none;
++
++        }
++
++        /* Remove the borders that appear when linking images with "border:none" and "outline:none" */
++        @-ms-viewport {
++            width: device-width;
++        }
++
++        h1,
++        h2,
++        h3,
++        h4,
++        h5,
++        h6 {
++            display: block !important;
++            margin: 0 !important;
++            padding: 0 !important;
++        }
++
++        body,
++        {
++            height: 100% !important;
++            -webkit-text-size-adjust: 100%;
++            -ms-text-size-adjust: 100
++            margin: 0;
++            padding: 0;
++            width: 100% !important;
++        }
++
++        /* Prevent Webkit and Windows Mobile platforms from changing default font sizes, while not breaking desktop design. */
++        linkfix a {
++            color: #bababa !important;
++            text-decoration: none;
++        }
++
++        /** CLIENT-SPECIFIC STYLE **/
++        img {
++            -ms-interpolation-mode: bicubic;
++        }
++
++        /* Force IE to smoothly render resized images. */
++
++        /* Remove spacing between tables in Outlook 2007 and up. */
++        .ReadMsgBody {
++            width: 100%;
++        }
++
++        /* Force Outlook.com to display emails at full width. */
++        p,
++        a,
++        li,
++        td,
++        blockquote {
++            mso-line-height-rule: exactly;
++        }
++
++        /* Force Outlook to render line heights as they're originally set. */
++        a[href^="tel"],
++        a[href^="sms"] {
++            color: inherit;
++            cursor: default;
++            text-decoration: none;
++        }
++
++        /* Force mobile devices to inherit declared link styles. */
++        p,
++        a,
++        li,
++        td,
++        body,
++        table,
++        blockquote {
++            -ms-text-size-adjust: 100%;
++            -webkit-text-size-adjust: 100%;
++        }
++
++        /* Prevent Windows- and Webkit-based mobile platforms from changing declared text sizes. */
++        /* Force Outlook.com to display line heights normally. */
++        /** STRUCTURAL STYLES **/
++        /** CONTENT STYLES **/
++        body {
++            width: 100%;
++            background-color: #DDDDDD;
++            margin: 0 auto;
++            padding: 0;
++            -webkit-font-smoothing: antialiased;
++            font-family: "Arial", sans-serif !important;
++        }
++
++        /** MOBILE STYLES **/
++
++        /* Force iOS Mail to render the email at full width & removes margins. */
++        /*** STRUCTURAL ***/
++        body {
++            margin: 0px;
++            padding: 0px;
++        }
++
++        * {
++            -webkit-text-size-adjust: none;
++        }
++
++        /* prevent iOS font upsizing */
++        /* force Outlook.com to honor line-height */
++        .appleFix a {
++            color: #000000 !important;
++            text-decoration: none !important;
++        }
++
++        /* prevent iOS auto-linking */
++        td {
++            mso-line-height-rule: exactly;
++        }
++    </style>
++    <style type="text/css">
++        @media only screen and (max-width: 480px) {
++
++            /* Force iOS Mail to render the email at full width & removes margins. */
++            /*** STRUCTURAL ***/
++            .container {
++                width: 100% !important;
++            }
++
++            .mobileShow {
++                display: block !important;
++                margin: 0 !important;
++                padding: 0 !important;
++                overflow: visible !important;
++                width: auto !important;
++                max-height: inherit !important;
++            }
++
++            .mobileHide {
++                display: none !important;
++            }
++
++            .photo img {
++                width: 100% !important;
++                max-width: 100% !important;
++                height: auto !important;
++            }
++
++            .columnStack {
++                width: 100% !important;
++                display: block !important;
++            }
++
++            .contentCenter,
++            .contentCenter img,
++            .contentCenter table {
++                margin: 0 auto !important;
++            }
++
++            .textCenter {
++                text-align: center !important;
++            }
++
++            .textLeft {
++                text-align: left !important;
++            }
++
++            .nullBorder {
++                border: none !important;
++            }
++
++            .alignTop {
++                vertical-align: top !important;
++            }
++
++            .autoHeight {
++                height: auto !important;
++            }
++
++            /*** PADDING ***/
++            .nullPad {
++                padding: 0px !important;
++            }
++
++            .mobilePad {
++                padding-right: 30px !important;
++                padding-left: 30px !important;
++            }
++
++            .bottomPad5 {
++                padding-bottom: 5px !important;
++            }
++
++            .topPad5 {
++                padding-bottom: 5px !important;
++            }
++
++            .topPad10 {
++                padding-top: 10px !important;
++            }
++
++            .bottomPad10 {
++                padding-bottom: 10px !important;
++            }
++
++            .topPad15 {
++                padding-top: 15px !important;
++            }
++
++            .bottomPad15 {
++                padding-bottom: 15px !important;
++            }
++
++            .topPad20 {
++                padding-top: 20px !important;
++            }
++
++            .bottomPad20 {
++                padding-bottom: 20px !important;
++            }
++
++            .topPad25 {
++                padding-top: 25px !important;
++            }
++
++            .bottomPad25 {
++                padding-bottom: 25px !important;
++            }
++
++            .bottomPad30 {
++                padding-bottom: 30px !important;
++            }
++
++            .rightPad30 {
++                padding-right: 30px !important;
++            }
++
++            /*** FONT RESIZING ***/
++            .fontResize17 {
++                font-size: 17px !important;
++            }
++
++            /* ported styles from 2014 and beyond */
++            /* force iOS5 to fill entire screen */
++            .marginfix {
++                position: relative;
++                top: 0;
++                left: 0;
++                right: 0;
++            }
++
++            /* to eliminate padding in iOS7 */
++            /*** Structure ***/
++            .full-width-content {
++                width: 300px !important;
++                min-width: 300px !important;
++                -webkit-box-sizing: border-box;
++                /* Safari/Chrome, other WebKit */
++                -moz-box-sizing: border-box;
++                /* Firefox, other Gecko */
++                box-sizing: border-box;
++                /* Opera/IE 8+ */
++            }
++
++            .hide {
++                width: 0px !important;
++                height: 0px !important;
++                display: none !important;
++            }
++
++            .stack {
++                display: block !important;
++                width: 100% !important;
++            }
++
++            .stack {
++                display: block !important;
++                width: 100% !important;
++            }
++
++            /*** Padding and resizing ***/
++            .pad15 {
++                padding-left: 15px !important;
++                padding-right: 15px !important;
++            }
++
++            .pad20 {
++                padding-left: 20px !important;
++                padding-right: 20px !important;
++            }
++
++            .nopadding {
++                padding: 0px !important;
++            }
++
++            .alignCenter {
++                text-align: center !important;
++                margin: 0 auto !important;
++            }
++
++            .alignLeft {
++                text-align: left !important;
++            }
++
++            span.mobileTITLE1 {
++                font-size: 17px !important;
++            }
++
++            /* shrink title font to fit in mobile */
++            span.mobileTITLE2 {
++                font-size: 15px !important;
++            }
++
++            /* shrink title font to fit in mobile */
++            span.mobileTITLE3 {
++                font-size: 13px !important;
++            }
++
++            /* shrink title font to fit in mobile */
++            span.mobileCTA {
++                font-size: 18px !important;
++            }
++
++            /*resize text cta to fit mobile scree added by Emeric 07/22/14*/
++            .CAP {
++                text-transform: capitalize !important;
++            }
++
++            /*cap a letter in mobile added by Emeric 7/16/14*/
++            /*** Image adjustments ***/
++            .stack img,
++            img.shrink {
++                max-width: 100% !important;
++                height: auto !important;
++            }
++
++            img.shrink {
++                width: 100% !important;
++                height: auto !important;
++            }
++
++            .bgmob {
++                background-color: #FFFFFF !important;
++            }
++
++            .padth1 {
++                padding: 0 15px !important;
++            }
++
++
++            .padth2 {
++                padding: 30px 15px 40px 15px !important;
++            }
++
++            .padth4 {
++                padding: 20px 15px 0 15px !important;
++            }
++
++            .padth5 {
++                padding: 0 15px 40px 15px !important;
++            }
++
++            .Fontth1 {
++                font-size: 16px !important;
++                font-style: normal !important;
++                font-weight: bold !important;
++                line-height: 22px !important;
++                letter-spacing: 0.64px !important;
++                text-align: center !important;
++            }
++
++            .Fontth2 {
++                font-size: 16px !important;
++                font-style: normal !important;
++                font-weight: normal !important;
++                line-height: 22px !important;
++                letter-spacing: 0.64px !important;
++                text-align: left !important;
++            }
++
++            .fontth04 {
++                font-size: 16px !important;
++                line-height: 22px !important;
++                letter-spacing: 0.64px !important;
++
++            }
++
++            .font05 {
++                font-size: 18px !important;
++                line-height: 22px !important;
++
++
++            }
++
++
++            .Fontth20 {
++                font-size: 20px !important;
++                font-style: normal !important;
++                font-weight: bold !important;
++                line-height: 24px !important;
++                letter-spacing: 0.4px !important;
++
++            }
++
++            .mobth {
++                min-width: 100% !important;
++            }
++
++            .fontthheader {
++                font-size: 12px !important;
++                line-height: 14px !important;
++            }
++
++            .fontth16 {
++                font-size: 16px !important;
++                line-height: 20px !important;
++            }
++
++            .fontth14 {
++                font-size: 14px !important;
++                line-height: 18px !important;
++                letter-spacing: 0.42px !important;
++            }
++
++            .padth03 {
++                padding: 0px 0px 20px 0px !important;
++            }
++
++            .imgcen {
++                margin: 0 auto !important;
++            }
++
++
++            div[class=mobile-only] {
++                display: block !important;
++                width: 100% !important;
++                max-height: none !important;
++                color: #000000 !important;
++                font-size: 32px !important;
++            }
++
++            .mobile-only {
++                display: block !important;
++                width: 100% !important;
++                max-height: none !important;
++                color: #000000 !important;
++                font-size: 32px !important;
++            }
++
++            table[class=hide], img[class=hide], td[class=hide], p[class=hide], span[class=hide] {
++                display: none !important;
++            }
++
++            .hide {
++                display: none !important;
++            }
++
++
++        }
++    </style>
++
++    <!--[if gte mso 9]>
++    <xml>
++        <o:OfficeDocumentSettings>
++            <o:AllowPNG/>
++            <o:PixelsPerInch>96</o:PixelsPerInch>
++        </o:OfficeDocumentSettings>
++    </xml> <![endif]-->
++
++
++    <!--[if mso]>
++    <style type="text/css"> /* Begin Outlook Font Fix */
++    body, table, td, div, span {
++        font-family: Arial, sans-serif !important;
++    }
++
++    /* End Outlook Font Fix */ </style> <![endif]-->
++
++    <!--[if gte mso 9]>
++    <style>       /* Target Outlook 2007 and 2010 */
++    html, body {
++        font-family: Arial, sans-serif !important;
++    }
++
++    table {
++        font-family: Arial, sans-serif !important;
++    }
++
++    td {
++        font-family: Arial, sans-serif !important;
++    }     </style>     <![endif]-->
++
++</head>
++<body style="margin: 0px; -webkit-text-size-adjust:none; background-color:#DDDDDD; padding:0" yahoo="fix">
++<!-- Start of: Header-->
++
++<table width="100%" border="0" cellspacing="0" cellpadding="0" bgcolor="#DDDDDD">
++    <tr>
++        <td align="center" valign="top">
++
++            <table border="0" cellspacing="0" cellpadding="0" width="800" bgcolor="#1C1C1E" class="container">
++                <tr>
++                    <td align="center" valign="top">
++
++
++                        <table border="0" cellspacing="0" cellpadding="0" width="100%" class="container">
++                            <tr>
++                                <td align="center" style="padding:0px 0px;">
++                                    <!-- Start of: EA Header -->
++                                    <table cellpadding="0" cellspacing="0" border="0" width="550" style="width:550px;"
++                                           class="container">
++                                        <tr>
++                                            <td align="center" valign="top">
++                                                <table border="0" cellspacing="0" cellpadding="0" width="100%">
++                                                    <tr>
++                                                        <td align="center" valign="middle" style="padding: 30px 10px;"
++                                                            class="mobilePad">
++
++                                                        </td>
++                                                    </tr>
++                                                </table>
++                                                <table width="100%" border="0" cellspacing="0" cellpadding="0">
++                                                    <tr>
++                                                        <td align="center" valign="top">
++                                                            <table cellpadding="0" cellspacing="0" width="100%"
++                                                                   style="min-width: 100%; "
++                                                                   class="stylingblock-content-wrapper">
++                                                                <tr>
++                                                                    <td class="stylingblock-content-wrapper camarker-inner">
++                                                                        <table border="0" cellpadding="0"
++                                                                               cellspacing="0" width="100%">
++                                                                            <tr>
++                                                                                <!--logo-->
++                                                                                <td align="center">
++
++
++
++                                                                                        <img src="https://25.30.88.200:8000/media/images/logo.png"
++                                                                                             style="display:block;"
++                                                                                             alt="Fithub logo" width="96"
++                                                                                             border="0">
++
++                                                                                </td>
++                                                                                <!--end logo-->
++                                                                            </tr>
++                                                                        </table>
++
++
++                                                                    </td>
++                                                                </tr>
++                                                            </table>
++                                                        </td>
++                                                    </tr>
++                                                </table>
++                                                <!-- End of: EA Header -->
++                                                <!-- Start of: Content -->
++                                                <table width="100%" border="0" cellspacing="0" cellpadding="0">
++                                                    <tr>
++                                                        <td align="center" style="padding:30px 0px 40px 0px;"
++                                                            class="padth2">
++
++                                                            <table cellpadding="0" cellspacing="0" border="0"
++                                                                   width="100%" style="width:100%;" class="container">
++
++
++                                                                <tr>
++                                                                    <td align="left" valign="top">
++                                                                        <!--body content goes here-->
++                                                                        <!--copy block-->
++                                                                        <table width="100%" border="0" cellspacing="0"
++                                                                               cellpadding="0">
++
++
++                                                                            <tr>
++                                                                                <td align="left"
++                                                                                    style="font-family: 'Electronic Arts Text', 'Electronic Arts Display', apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';font-style: normal;font-weight: normal;font-size: 20px;line-height: 30px;text-align: left;letter-spacing: 0.48px;color: #F8F8F8;"
++                                                                                    class="Fontth2">
++
++                                                                                    Ваш код безопасности:
++
++                                                                                </td>
++
++                                                                            </tr>
++
++
++                                                                            <tr>
++                                                                                <td align="left"
++                                                                                    style="font-family:'Electronic Arts Display', apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';font-style: normal;font-weight: bold;font-size: 48px;line-height: 54px;color: #F8F8F8;padding:20px 0;"
++                                                                                    valign="top">
++                                                                                    <b>{{ code }}</b>
++
++                                                                                </td>
++
++                                                                            </tr>
++                                                                            <tr>
++                                                                                <td align="left"
++                                                                                    style="font-family: 'Electronic Arts Text', 'Electronic Arts Display', apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';font-style: normal;font-weight: normal;font-size: 20px;line-height: 30px;text-align: left;letter-spacing: 0.48px;color: #F8F8F8;"
++                                                                                    class="Fontth2">
++
++                                                                                    Если вы не запрашивали код,
++                                                                                    проигнорируйте это сообщение.
++
++
++<br>
++                                                                                    Хороших вам тренрировок!<br>FitHub Team.
++
++                                                                                </td>
++                                                                            </tr>
++
++                                                                        </table>
++                                                                        <!--end body content-->
++                                                                    </td>
++                                                                </tr>
++                                                            </table>
++                                                            <!--end EMAIL NAME-->
++                                                            <!--end body content-->
++                                                        </td>
++                                                    </tr>
++                                                </table>
++
++
++                                                <!-- Start of: Footer -->
++
++
++                                                <table width="550" border="0" cellspacing="0" cellpadding="0"
++                                                       class="container" align="center">
++                                                    <tr>
++                                                        <td align="center" valign="top" class="pad15">
++                                                            <table cellpadding="0" cellspacing="0" border="0"
++                                                                   width="100%">
++                                                                <tr>
++                                                                    <td align="center"
++                                                                        style="padding: 0px 0px;border-top:2px solid #343647;"
++                                                                        class="nullPad">
++                                                                        <table border="0" cellspacing="0"
++                                                                               cellpadding="0" width="100%"
++                                                                               class="container">
++                                                                            <tr>
++                                                                                <td align="center">
++                                                                                    <!--begin ORIGIN STATUS-->
++                                                                                    <table cellpadding="0"
++                                                                                           cellspacing="0" border="0"
++                                                                                           width="100%">
++                                                                                        <tr>
++                                                                                            <td align="left"
++                                                                                                style="padding:40px 0px 0px;">
++                                                                                                <!--OX_nonpurchase_footer-Juno-->
++                                                                                                <table cellpadding="0"
++                                                                                                       cellspacing="0"
++                                                                                                       width="100%"
++                                                                                                       role="presentation"
++                                                                                                       style="min-width: 100%; "
++                                                                                                       class="stylingblock-content-wrapper">
++                                                                                                    <tr>
++                                                                                                        <td class="stylingblock-content-wrapper camarker-inner">
++                                                                                                            <!--  -->
++                                                                                                            <table border="0"
++                                                                                                                   cellpadding="0"
++                                                                                                                   cellspacing="0"
++                                                                                                                   width="100%">
++
++
++                                                                                                                <tr>
++                                                                                                                    <td align="left"
++                                                                                                                        class="fontth04"
++                                                                                                                        style="font-family: 'Electronic Arts Text', apple-system, sans-serif; color:#908E97; font-size:18px;font-style:normal; font-weight:normal;letter-spacing:0.48px; line-height:25px;"
++                                                                                                                        valign="top">
++                                                                                                                        Это
++                                                                                                                        сообщение
++                                                                                                                        отправлено
++                                                                                                                        FitHub
++                                                                                                                        Team.
++                                                                                                                        <br>
++                                                                                                                        Чтобы
++
++                                                                                                                        связаться
++                                                                                                                        с
++                                                                                                                        нами,
++                                                                                                                        Вы
++                                                                                                                        можете
++                                                                                                                        написать
++                                                                                                                        сообщение
++                                                                                                                        на
++                                                                                                                        <a href="fithub.csv@gmail.com"
++                                                                                                                           style="color: #908E97; text-decoration: underline;"
++                                                                                                                           target="_blank">почту</a>
++                                                                                                                        <br>
++                                                                                                                        <br>
++                                                                                                                        <br>
++                                                                                                                        <br>
++                                                                                                                </tr>
++                                                                                                            </table>
++                                                                                                        </td>
++                                                                                                    </tr>
++                                                                                                </table>
++                                                                                            </td>
++                                                                                        </tr>
++                                                                                    </table>
++                                                                                </td>
++                                                                            </tr>
++                                                                        </table>
++
++
++                                                                        <!-- End of: Footer -->
++
++                                                                        <!--end title-->
++
++
++                                                                    </td>
++                                                                    <!--end order details-->
++                                                                </tr>
++
++
++                                                            </table>
++                                                        </td>
++                                                    </tr>
++                                                </table>
++
++
++                                            </td>
++                                        </tr>
++                                    </table>
++
++                                </td>
++                            </tr>
++                        </table>
++
++                    </td>
++                </tr>
++            </table>
++        </td>
++    </tr>
++</table>
++</body>
++
++</html>
+\ No newline at end of file
