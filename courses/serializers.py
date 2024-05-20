@@ -53,6 +53,7 @@ class CourseDetailSerializer(serializers.ModelSerializer):
             instance.tags.add(tag)
         return super().update(instance, validated_data)
 
+
 class WorkoutSerializer(serializers.ModelSerializer):
     class Meta:
         model = Workout
