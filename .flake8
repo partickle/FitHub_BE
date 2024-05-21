@@ -1,5 +1,5 @@
 [flake8]
-ignore = E501, E265, E402, E302, F401, E126
+ignore = E501, E265, E402, E302, F401, E126, W391
 exclude =
     migrations,
     __init__.py

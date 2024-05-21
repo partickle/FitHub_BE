@@ -39,6 +39,7 @@ ALLOWED_HOSTS = ['*']
 INSTALLED_APPS = [
     'authorisation',
     'courses',
+    'community',
     'drf_yasg',
     'django.contrib.admin',
     'django.contrib.auth',

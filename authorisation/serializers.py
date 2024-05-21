@@ -22,4 +22,3 @@ class MyUserSerializer(serializers.ModelSerializer):
 
         UserProfile.objects.create(user=user)
         return user
-
