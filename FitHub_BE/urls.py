@@ -17,23 +17,39 @@ Including another URLconf
 
 
 from django.contrib import admin
-from django.urls import path, include
+
+
+from django.urls import path, include, re_path
+from django.views.generic import RedirectView
 from drf_yasg import openapi
 from drf_yasg.views import get_schema_view
+from django.conf.urls.static import static
+from django.conf import settings
 
 from rest_framework import permissions
 
-from authorisation.views import RegisterAPIView, LoginAPIView
 schema_view = get_schema_view(
     openapi.Info(
         title="FitHub API",
         default_version="v1"
     ),
     public=True,
-    permission_classes=(permissions.AllowAny,)
+    permission_classes=[permissions.AllowAny, ]
 )
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('auth/', include('authorisation.urls')),
+                  path('admin/', admin.site.urls),
+                  path('auth/', include([
+                      path('', include('djoser.urls')),
+                      path('', include('djoser.urls.authtoken')),
+                      path('', include('djoser.urls.jwt')),
+                      path('', include('authorisation.urls')),
+                  ])),
+                  path('api/v1/', include('courses.urls')),
+                  # path('api/v1/', include('trainings.urls')),
+                  # path('api/v1/', include('exercises.urls')),
+                  path('api/v1/', include('community.urls')),
 
-]
+                  path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
+                  path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
+                  re_path(r'^favicon\.ico$', RedirectView.as_view(url='/static/images/favicon.ico', permanent=True)),
+              ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
