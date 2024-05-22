@@ -22,10 +22,6 @@ class CustomUser(AbstractUser):
         return check_password(raw_password, self.password)
 
 
-class UserProfile(models.Model):
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='profile')
-
-
 class PremiumSubscription(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='premium_subscriptions')
     start_date = models.DateTimeField()
