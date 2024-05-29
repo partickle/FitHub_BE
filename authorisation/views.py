@@ -10,8 +10,8 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from FitHub_BE import settings
-from .models import ActivationCode, generate_activation_code
-from .serializers import MyUserSerializer, User
+from .models import ActivationCode, generate_activation_code, CustomUser
+from .serializers import User, MyUserSerializer, UserProfileUpdateSerializer
 
 
 class RegisterAPIView(generics.GenericAPIView):
@@ -32,9 +32,10 @@ class LoginAPIView(generics.GenericAPIView):
     serializer_class = MyUserSerializer
 
     def post(self, request):
-        username = request.data.get('username')
+        email = request.data.get('email')
         password = request.data.get('password')
-        user = authenticate(username=username, password=password)
+
+        user = authenticate(request, username=email, password=password)
         if user:
             refresh = RefreshToken.for_user(user)
             return response.Response({
@@ -90,3 +91,21 @@ class VerifyActivationCodeView(APIView):
             return Response({"message": "Activation code is valid."}, status=status.HTTP_200_OK)
         else:
             return Response({"error": "Invalid or expired activation code."}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class UserProfileUpdateAPIView(generics.UpdateAPIView):
+    queryset = CustomUser.objects.all()
+    serializer_class = UserProfileUpdateSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        return self.request.user
+
+    def patch(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        if serializer.is_valid():
+            self.perform_update(serializer)
+            return Response({"message": "Профиль успешно обновлен", "profile": serializer.data})
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
