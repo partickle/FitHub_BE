@@ -1,10 +1,6 @@
-import authorisation.models
-import django.contrib.auth.models
-import django.contrib.auth.validators
-import django.db.models.deletion
-import django.utils.timezone
-from django.conf import settings
 from django.db import migrations, models
+from django.conf import settings
+import django.utils.timezone
 
 
 class Migration(migrations.Migration):
@@ -48,9 +44,9 @@ class Migration(migrations.Migration):
             name='ActivationCode',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('code', models.CharField(default=authorisation.models.generate_activation_code, max_length=6)),
+                ('code', models.CharField(max_length=6)),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('user', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, to=settings.AUTH_USER_MODEL)),
+                ('user', models.ForeignKey(on_delete=models.PROTECT, to=settings.AUTH_USER_MODEL)),
             ],
         ),
         migrations.CreateModel(
@@ -60,14 +56,14 @@ class Migration(migrations.Migration):
                 ('start_date', models.DateTimeField()),
                 ('end_date', models.DateTimeField()),
                 ('is_active', models.BooleanField(default=False)),
-                ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='premium_subscriptions', to=settings.AUTH_USER_MODEL)),
+                ('user', models.ForeignKey(on_delete=models.CASCADE, related_name='premium_subscriptions', to=settings.AUTH_USER_MODEL)),
             ],
         ),
         migrations.CreateModel(
             name='UserProfile',
             fields=[
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('user', models.OneToOneField(on_delete=django.db.models.deletion.CASCADE, related_name='profile', to=settings.AUTH_USER_MODEL)),
+                ('user', models.OneToOneField(on_delete=models.CASCADE, related_name='profile', to=settings.AUTH_USER_MODEL)),
             ],
         ),
     ]

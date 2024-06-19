@@ -1,18 +1,22 @@
-from django.core.mail import send_mail, EmailMultiAlternatives
+from django.contrib.auth import authenticate
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.response import Response
+from FitHub_BE import settings
+from .models import CustomUser
+from .serializers import LoginSerializer, MyUserSerializer, ResetPasswordSerializer, SendVerificationCodeSerializer, UserProfileUpdateSerializer, VerifyVerificationCodeSerializer
+from rest_framework import generics, status
+from rest_framework.views import APIView
 from django.template.loader import render_to_string
 from django.utils.html import strip_tags
+from django.core.mail import EmailMultiAlternatives
+import cachetools
+import random
+import string
+from drf_yasg.utils import swagger_auto_schema
+from rest_framework.permissions import IsAuthenticated
 
-from rest_framework import generics, permissions, response, status
-from django.contrib.auth import authenticate
 
-from rest_framework.response import Response
-from rest_framework.views import APIView
-from rest_framework_simplejwt.tokens import RefreshToken
-
-from FitHub_BE import settings
-from .models import ActivationCode, generate_activation_code, CustomUser
-from .serializers import User, MyUserSerializer, UserProfileUpdateSerializer
-
+cache = cachetools.TTLCache(maxsize=100, ttl=600)
 
 class RegisterAPIView(generics.GenericAPIView):
     serializer_class = MyUserSerializer
@@ -21,16 +25,15 @@ class RegisterAPIView(generics.GenericAPIView):
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
-            return response.Response({
+            return Response({
                 "user": MyUserSerializer(user).data,
                 "message": "User Created Successfully."
             }, status=status.HTTP_201_CREATED)
-        return response.Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class LoginAPIView(generics.GenericAPIView):
-    serializer_class = MyUserSerializer
-
+    @swagger_auto_schema(request_body=LoginSerializer)
     def post(self, request):
         email = request.data.get('email')
         password = request.data.get('password')
@@ -38,74 +41,108 @@ class LoginAPIView(generics.GenericAPIView):
         user = authenticate(request, username=email, password=password)
         if user:
             refresh = RefreshToken.for_user(user)
-            return response.Response({
+            return Response({
                 "user": MyUserSerializer(user).data,
                 "refresh": str(refresh),
                 "access": str(refresh.access_token),
                 "message": "User Logged In Successfully."
             }, status=status.HTTP_200_OK)
-        return response.Response({"message": "Invalid Credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+        return Response({"message": "Invalid Credentials"}, status=status.HTTP_401_UNAUTHORIZED)
 
 
-class SendActivationCodeView(APIView):
+class UserProfileUpdateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        serializer = MyUserSerializer(request.user)
+        return Response(serializer.data)
+    
+    @swagger_auto_schema(request_body=MyUserSerializer, responses={200: MyUserSerializer, 400: "JSON with error messages"})
+    def put(self, request, *args, **kwargs):
+        serializer = MyUserSerializer(request.user, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_BAD_REQUEST)
+
+
+class SendVerificationCodeView(APIView):
+    @swagger_auto_schema(request_body=SendVerificationCodeSerializer)
     def post(self, request, *args, **kwargs):
-        email = request.data.get("email")
-        if not email:
-            return Response({"error": "Email is required"}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = SendVerificationCodeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data['email']
 
         try:
-            user = User.objects.get(email=email)
-        except User.DoesNotExist:
+            user = CustomUser.objects.get(email=email)
+        except CustomUser.DoesNotExist:
             return Response({"error": "User with this email does not exist"}, status=status.HTTP_404_NOT_FOUND)
 
-        code_obj, created = ActivationCode.objects.update_or_create(
-            user=user,
-            defaults={'code': generate_activation_code()}
-        )
+        code = ''.join(random.choice(string.digits) for _ in range(6))
+        cache[user.email] = code
 
-        context = {'code': code_obj.code, 'user': user}
-        html_content = render_to_string('activation_email.html', context)
+        context = {'code': code, 'user': user}
+        html_content = render_to_string('verification_email.html', context)
         text_content = strip_tags(html_content)
 
-        email = EmailMultiAlternatives(
+        email_message = EmailMultiAlternatives(
             'Your Activation Code',
             text_content,
             settings.DEFAULT_FROM_EMAIL,
             [email]
         )
-        email.attach_alternative(html_content, "text/html")
-        email.send()
+        email_message.attach_alternative(html_content, "text/html")
+        email_message.send()
 
-        return Response({"message": "Activation code sent to email"}, status=status.HTTP_200_OK)
+        return Response({"message": "Verification code sent to email"}, status=status.HTTP_200_OK)
 
 
-class VerifyActivationCodeView(APIView):
+class VerifyVerificationCodeView(APIView):
+    @swagger_auto_schema(request_body=VerifyVerificationCodeSerializer)
     def post(self, request, *args, **kwargs):
-        user_id = request.data.get('user_id')
-        code = request.data.get('code')
+        serializer = VerifyVerificationCodeSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data['email']
+        code = serializer.validated_data['code']
 
-        if not user_id or not code:
-            return Response({"error": "Both user_id and code must be provided."}, status=status.HTTP_400_BAD_REQUEST)
+        user = CustomUser.objects.get(email=email)
 
-        if ActivationCode.verify_code(user_id, code):
-            return Response({"message": "Activation code is valid."}, status=status.HTTP_200_OK)
-        else:
-            return Response({"error": "Invalid or expired activation code."}, status=status.HTTP_400_BAD_REQUEST)
+        if email not in cache:
+            return Response({"error": "Verification code has expired."}, status=status.HTTP_400_BAD_REQUEST)
+        if cache[email] != code:
+            return Response({"error": "Invalid verification code."}, status=status.HTTP_400_BAD_REQUEST)
+
+        del cache[email]
+        return Response({"message": "Verification code is valid."}, status=status.HTTP_200_OK)
 
 
-class UserProfileUpdateAPIView(generics.UpdateAPIView):
-    queryset = CustomUser.objects.all()
-    serializer_class = UserProfileUpdateSerializer
-    permission_classes = [permissions.IsAuthenticated]
+class ResetPasswordView(APIView):
+    @swagger_auto_schema(request_body=ResetPasswordSerializer)
+    def post(self, request, *args, **kwargs):
+        serializer = ResetPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        email = serializer.validated_data['email']
+        new_password = serializer.validated_data['new_password']
 
-    def get_object(self):
-        return self.request.user
+        try:
+            user = CustomUser.objects.get(email=email)
+        except CustomUser.DoesNotExist:
+            return Response({"error": "User with this email does not exist."}, status=status.HTTP_404_NOT_FOUND)
 
-    def patch(self, request, *args, **kwargs):
-        partial = kwargs.pop('partial', False)
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=partial)
-        if serializer.is_valid():
-            self.perform_update(serializer)
-            return Response({"message": "Профиль успешно обновлен", "profile": serializer.data})
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        user.set_password(new_password)
+        user.save()
+
+        if email in cache:
+            del cache[email]
+
+        return Response({"message": "Password reset successfully."}, status=status.HTTP_200_OK)
+    
+
+class DeleteAccountView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        request.user.delete()
+        return Response({"message": "Account deleted successfully."}, status=status.HTTP_200_OK)
+    

@@ -35,7 +35,7 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['*']
 
-CSRF_TRUSTED_ORIGINS = ['https://bf4c-83-139-159-199.ngrok-free.app']
+CSRF_TRUSTED_ORIGINS = ['http://158.160.80.227:8000/']
 
 
 # Application definition
@@ -45,6 +45,9 @@ INSTALLED_APPS = [
     'rest_framework',
     'authorisation',
     'courses',
+    'workouts',
+    'exercises',
+    'user_profile',
     'community',
     'drf_yasg',
     'corsheaders',
@@ -55,7 +58,6 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django_extensions',
-    'djoser',
     'rest_framework.authtoken',
 
 ]
@@ -119,11 +121,11 @@ WSGI_APPLICATION = 'FitHub_BE.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'FitHub',
-        'USER': 'postgres',
-        'PASSWORD': os.getenv('PASSWORD_DB'),
-        'HOST': 'localhost',
-        'PORT': '5432',
+        'NAME': os.getenv('POSTGRES_DB'),
+        'USER': os.getenv('POSTGRES_USER'),
+        'PASSWORD': os.getenv('POSTGRES_PASSWORD'),
+        'HOST': 'db',
+        'PORT': os.getenv('POSTGRES_PORT', '5432'),
     }
 }
 
@@ -157,23 +159,11 @@ REST_FRAMEWORK = {
     )
 }
 
-DJOSER = {
-    'PASSWORD_RESET_CONFIRM_URL': '#/password/reset/confirm/{uid}/{token}',
-    'USERNAME_RESET_CONFIRM_URL': '#/username/reset/confirm/{uid}/{token}',
-    'ACTIVATION_URL': '#/activate/{uid}/{token}',
-    'SEND_ACTIVATION_EMAIL': True,
-    'SERIALIZERS': {},
-    'EMAIL': {
-        'password_reset': 'path.to.custom_email.CustomPasswordResetEmail',
-    },
-}
-
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=30),
     'ROTATE_REFRESH_TOKENS': True,
-    # Если True, каждый раз при обновлении токена будет выдаваться новый токен обновления
-    'BLACKLIST_AFTER_ROTATION': True,  # Если True, старые токены обновления добавляются в черный список при их замене
+    'BLACKLIST_AFTER_ROTATION': True, 
     'UPDATE_LAST_LOGIN': False,
 
     'ALGORITHM': 'HS256',

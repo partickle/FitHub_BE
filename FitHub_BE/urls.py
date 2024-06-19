@@ -39,15 +39,13 @@ schema_view = get_schema_view(
 urlpatterns = [
                   path('admin/', admin.site.urls),
                   path('auth/', include([
-                      path('', include('djoser.urls')),
-                      path('', include('djoser.urls.authtoken')),
-                      path('', include('djoser.urls.jwt')),
                       path('', include('authorisation.urls')),
                   ])),
-                  path('api/v1/', include('courses.urls')),
-                  # path('api/v1/', include('trainings.urls')),
-                  # path('api/v1/', include('exercises.urls')),
-                  path('api/v1/', include('community.urls')),
+                  path('courses/', include('courses.urls')),
+                  path('workouts/', include('workouts.urls')),
+                  path('exercises/', include('exercises.urls')),
+                  path('community/', include('community.urls')),
+                  path('profile/', include('user_profile.urls')),
 
                   path('swagger/', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
                   path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),

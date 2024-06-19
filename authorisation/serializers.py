@@ -16,10 +16,7 @@ class MyUserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = [
-            'id', 'first_name', 'last_name', 'username', 'email', 'registration_date', 'photo',
-            'profile', 'password'
-        ]
+        fields = ['first_name', 'last_name', 'username', 'email', 'photo', 'profile', 'password']
         extra_kwargs = {'password': {'write_only': True}}
 
     def create(self, validated_data):
@@ -41,3 +38,28 @@ class MyUserSerializer(serializers.ModelSerializer):
 
         instance.save()
         return instance
+
+
+class SendVerificationCodeSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class VerifyVerificationCodeSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    code = serializers.CharField(max_length=6)
+
+
+class ResetPasswordSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    new_password = serializers.CharField(max_length=128)
+
+
+class LoginSerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = User
+        fields = ['email', 'password']
+        extra_kwargs = {
+            'password': {'write_only': True},
+            'email': {'required': True}
+        }

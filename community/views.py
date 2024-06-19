@@ -71,17 +71,6 @@ class ComplaintDetailView(APIView):
         except Complaint.DoesNotExist:
             return Response({"message": "Complaint not found"}, status=status.HTTP_404_NOT_FOUND)
 
-    def put(self, request, pk):
-        try:
-            complaint = Complaint.objects.get(pk=pk)
-            serializer = ComplaintSerializer(complaint, data=request.data)
-            if serializer.is_valid():
-                serializer.save()
-                return Response(serializer.data)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        except Complaint.DoesNotExist:
-            return Response({"message": "Complaint not found"}, status=status.HTTP_404_NOT_FOUND)
-
     def delete(self, request, pk):
         try:
             complaint = Complaint.objects.get(pk=pk)
