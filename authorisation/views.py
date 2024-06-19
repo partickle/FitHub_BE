@@ -56,7 +56,7 @@ class UserProfileUpdateView(APIView):
     def get(self, request, *args, **kwargs):
         serializer = MyUserSerializer(request.user)
         return Response(serializer.data)
-    
+
     @swagger_auto_schema(request_body=MyUserSerializer, responses={200: MyUserSerializer, 400: "JSON with error messages"})
     def put(self, request, *args, **kwargs):
         serializer = MyUserSerializer(request.user, data=request.data, partial=True)
@@ -105,8 +105,6 @@ class VerifyVerificationCodeView(APIView):
         email = serializer.validated_data['email']
         code = serializer.validated_data['code']
 
-        user = CustomUser.objects.get(email=email)
-
         if email not in cache:
             return Response({"error": "Verification code has expired."}, status=status.HTTP_400_BAD_REQUEST)
         if cache[email] != code:
@@ -137,7 +135,7 @@ class ResetPasswordView(APIView):
             del cache[email]
 
         return Response({"message": "Password reset successfully."}, status=status.HTTP_200_OK)
-    
+
 
 class DeleteAccountView(APIView):
     permission_classes = [IsAuthenticated]
@@ -145,4 +143,3 @@ class DeleteAccountView(APIView):
     def post(self, request, *args, **kwargs):
         request.user.delete()
         return Response({"message": "Account deleted successfully."}, status=status.HTTP_200_OK)
-    

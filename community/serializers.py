@@ -1,4 +1,6 @@
 from rest_framework import serializers
+
+from courses.models import Course
 from .models import Comment, Complaint
 
 
@@ -19,3 +21,38 @@ class ComplaintSerializer(serializers.ModelSerializer):
     class Meta:
         model = Complaint
         fields = '__all__'
+
+
+class CourseListSerializer(serializers.ModelSerializer):
+    owner_photo = serializers.SerializerMethodField()
+    average_rating = serializers.SerializerMethodField()
+    tags = serializers.StringRelatedField(many=True)
+
+    class Meta:
+        model = Course
+        fields = ['name', 'category', 'image', 'owner_photo', 'average_rating', 'tags']
+
+    def get_owner_photo(self, obj):
+        if obj.owner and obj.owner.photo:
+            return obj.owner.photo.url
+        return None
+
+    def get_average_rating(self, obj):
+        return obj.average_rating()
+
+
+class CourseDetailSerializer(serializers.ModelSerializer):
+    owner_photo = serializers.SerializerMethodField()
+    average_rating = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Course
+        fields = '__all__'
+
+    def get_owner_photo(self, obj):
+        if obj.owner and obj.owner.photo:
+            return obj.owner.photo.url
+        return None
+
+    def get_average_rating(self, obj):
+        return obj.average_rating()

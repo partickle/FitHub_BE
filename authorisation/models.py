@@ -1,10 +1,10 @@
 from django.contrib.auth.hashers import check_password
 from django.contrib.auth.models import AbstractUser
-from django.contrib.auth.models import User
 from django.db import models
 from django.utils import timezone
 
 from FitHub_BE import settings
+from courses.models import UserCourse
 
 
 class UserProfile(models.Model):
@@ -48,7 +48,7 @@ class WorkoutSession(models.Model):
 
 class CustomUser(AbstractUser):
     email = models.EmailField(unique=True)
-    photo = models.ImageField(upload_to='profile_photos/', null=True, blank=True)
+    photo = models.ImageField(upload_to='media/profile_photos/', null=True, blank=True)
     registration_date = models.DateTimeField(default=timezone.now)
 
     USERNAME_FIELD = 'email'
@@ -59,6 +59,28 @@ class CustomUser(AbstractUser):
 
     def check_password(self, raw_password):
         return check_password(raw_password, self.password)
+
+    def get_active_courses(self):
+        return self.user_courses.filter(status='in_progress')
+
+    def start_course(self, course):
+        user_course, created = UserCourse.objects.get_or_create(
+            user=self, course=course, defaults={'status': 'in_progress', 'start_date': timezone.now()}
+        )
+        if not created:
+            user_course.status = 'in_progress'
+            user_course.start_date = timezone.now()
+            user_course.save()
+        return user_course
+
+    def complete_course(self, course):
+        try:
+            user_course = UserCourse.objects.get(user=self, course=course)
+            user_course.status = 'completed'
+            user_course.end_date = timezone.now()
+            user_course.save()
+        except UserCourse.DoesNotExist:
+            raise ValueError("Пользователь не начинал этот курс")
 
 
 class PremiumSubscription(models.Model):
